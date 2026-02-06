@@ -10,7 +10,7 @@ import {
   signInWithPopup,
   updateProfile,
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc, writeBatch } from 'firebase/firestore';
 
 import { useAuth, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -85,16 +85,39 @@ export default function SignupPage() {
         displayName: name.trim(),
       });
 
-      await setDoc(doc(firestore, 'users', cred.user.uid), {
+      const newPatientId = 'patient_' + Math.random().toString(36).substring(2, 10);
+      const batch = writeBatch(firestore);
+
+      // 1. Create User Doc (Caregiver)
+      batch.set(doc(firestore, 'users', cred.user.uid), {
         uid: cred.user.uid,
         displayName: name.trim(),
         email: cred.user.email,
         role: 'caregiver',
+        patientUid: newPatientId, // Auto-assign
         createdAt: serverTimestamp(),
       });
 
+      // 2. Create Patient Doc (User role=patient)
+      batch.set(doc(firestore, 'users', newPatientId), {
+        uid: newPatientId,
+        role: 'patient',
+        displayName: 'My Patient', // Default name
+        email: `${newPatientId}@memory-app.local`,
+        createdAt: serverTimestamp(),
+      });
+
+      // 3. Create Directory Entry (For Linkage/Login)
+      batch.set(doc(firestore, 'patient_directory', newPatientId), {
+        uid: newPatientId,
+        displayName: 'My Patient'
+      });
+
+      await batch.commit();
+
       router.replace('/dashboard');
     } catch (error: any) {
+      console.error(error);
       let message = 'Something went wrong. Please try again.';
       if (error?.code === 'auth/email-already-in-use') {
         message = 'This email is already registered.';
@@ -131,14 +154,36 @@ export default function SignupPage() {
       const snap = await getDoc(ref);
 
       if (!snap.exists()) {
-        await setDoc(ref, {
+        const newPatientId = 'patient_' + Math.random().toString(36).substring(2, 10);
+        const batch = writeBatch(firestore);
+
+        // 1. Create User Doc
+        batch.set(ref, {
           uid: result.user.uid,
           displayName: result.user.displayName,
           email: result.user.email,
           photoURL: result.user.photoURL,
           role: 'caregiver',
+          patientUid: newPatientId, // Auto-assign
           createdAt: serverTimestamp(),
         });
+
+        // 2. Create Patient Doc
+        batch.set(doc(firestore, 'users', newPatientId), {
+          uid: newPatientId,
+          role: 'patient',
+          displayName: 'My Patient',
+          email: `${newPatientId}@memory-app.local`,
+          createdAt: serverTimestamp(),
+        });
+
+        // 3. Create Directory Entry
+        batch.set(doc(firestore, 'patient_directory', newPatientId), {
+          uid: newPatientId,
+          displayName: 'My Patient'
+        });
+
+        await batch.commit();
       }
 
       router.replace('/dashboard');

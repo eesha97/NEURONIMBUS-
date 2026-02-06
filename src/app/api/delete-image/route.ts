@@ -18,12 +18,10 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Missing publicId" }, { status: 400 });
         }
 
-        await new Promise((resolve, reject) => {
-            cloudinary.uploader.destroy(publicId, (error, result) => {
-                if (error) reject(error);
-                resolve(result);
-            });
-        });
+        const result = await cloudinary.uploader.destroy(publicId);
+        if (result.result !== 'ok' && result.result !== 'not found') {
+            throw new Error(`Cloudinary delete failed: ${result.result}`);
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

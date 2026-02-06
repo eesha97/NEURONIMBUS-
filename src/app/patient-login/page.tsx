@@ -31,16 +31,29 @@ export default function PatientLoginPage() {
         try {
             const targetId = patientId.trim();
             // 1. Verify ID exists in directory (public)
+            // 1. Verify ID exists in directory (public) or Users collection
             const docRef = doc(firestore, 'patient_directory', targetId);
-            const docSnap = await getDoc(docRef);
+            let docSnap = await getDoc(docRef);
+            let patientName = '';
 
-            if (!docSnap.exists()) {
-                setError('Invalid Patient ID. Please check with your caregiver.');
-                setLoading(false);
-                return;
+            if (docSnap.exists()) {
+                patientName = docSnap.data().displayName;
+            } else {
+                // Fallback: Check authoritative User collection
+                const userDocRef = doc(firestore, 'users', targetId);
+                const userSnap = await getDoc(userDocRef);
+
+                if (userSnap.exists() && userSnap.data().role === 'patient') {
+                    docSnap = userSnap; // Treat as valid
+                    patientName = userSnap.data().displayName;
+                } else {
+                    setError('Invalid Patient ID. Please check with your caregiver.');
+                    setLoading(false);
+                    return;
+                }
             }
 
-            const patientData = docSnap.data();
+            const patientData = { displayName: patientName };
 
             // 2. Sign In Anonymously to get a valid Firebase Token
             // This ensures we can read protected collections like Events/Notes
@@ -54,7 +67,11 @@ export default function PatientLoginPage() {
 
         } catch (err: any) {
             console.error(err);
-            setError('Login failed. Please try again.');
+            if (err.code === 'auth/admin-restricted-operation') {
+                setError('Anonymous Auth is disabled in Firebase Console. Please enable it under Authentication > Sign-in method.');
+            } else {
+                setError('Login failed. Please try again.');
+            }
             setLoading(false);
         }
     };

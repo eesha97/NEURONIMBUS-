@@ -20,7 +20,7 @@ export default function PeoplePage() {
 
   // Wait for profile to load before falling back (or better, show loading)
   // If we are loading user, we shouldn't query yet.
-  const patientUid = profile?.patientUid;
+  const patientUid = profile?.patientUid || PUBLIC_PATIENT_ID;
 
   const peopleQuery = useMemo(() => {
     if (!firestore || !patientUid) return null;
@@ -65,7 +65,7 @@ export default function PeoplePage() {
                   </CardHeader>
                   <CardContent className="p-3">
                     <p className="font-semibold truncate">{person.displayName}</p>
-                    <p className="text-sm text-muted-foreground">{person.relationshipTag}</p>
+
                   </CardContent>
                 </Card>
               </Link>

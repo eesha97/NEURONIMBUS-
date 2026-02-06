@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { MemoryCard } from '@/app/(app)/memories/components/memory-card';
 import { notFound } from 'next/navigation';
 import { format } from 'date-fns';
-import { useDoc, useCollection, useFirestore } from '@/firebase';
+import { useDoc, useCollection, useFirestore, useUser } from '@/firebase';
 import { doc, collection, query, where, orderBy, type Query } from 'firebase/firestore';
 import type { Memory, Event } from '@/lib/types';
 import { deleteDoc } from 'firebase/firestore';
@@ -17,6 +17,7 @@ import { useState } from 'react';
 
 export default function EventDetailPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
+  const { profile } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -99,10 +100,15 @@ export default function EventDetailPage({ params }: { params: Promise<{ eventId:
             </p>
           )}
         </div>
-        <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-          <Trash2 className="h-4 w-4 mr-2" />
-          {deleting ? 'Deleting...' : 'Delete Event'}
-        </Button>
+        <div className="flex gap-2">
+          {/* Only caregivers can delete */}
+          {(event.patientUid === profile?.patientUid || profile?.role === 'caregiver') && (
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              {deleting ? 'Deleting...' : 'Delete Event'}
+            </Button>
+          )}
+        </div>
       </header>
 
       <section className="space-y-6">

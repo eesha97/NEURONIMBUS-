@@ -185,7 +185,7 @@ export default function NotesPage() {
                     {profile?.role !== 'patient' && (
                       <button
                         onClick={() => handleDeleteNote(note)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 p-1 rounded"
+                        className="text-destructive hover:bg-destructive/10 p-1 rounded opacity-70 hover:opacity-100 transition-opacity"
                         title="Delete note"
                       >
                         <Trash2 className="h-3 w-3" />

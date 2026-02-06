@@ -11,8 +11,13 @@ import { Badge } from '@/components/ui/badge';
 import type { Memory } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Trash2, LoaderCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { useUser, useFirestore } from '@/firebase';
+import { deleteDoc, doc } from 'firebase/firestore';
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 interface MemoryCardProps {
   memory: Memory;
@@ -20,13 +25,45 @@ interface MemoryCardProps {
 }
 
 export function MemoryCard({ memory, onClick }: MemoryCardProps) {
+  const { profile } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click (nav)
+    if (!firestore || !memory.id) return;
+    if (!confirm("Delete this memory including the image?")) return;
+
+    setIsDeleting(true);
+    try {
+      // Delete image first
+      if (memory.publicId) {
+        await fetch('/api/delete-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ publicId: memory.publicId }),
+        });
+      }
+      await deleteDoc(doc(firestore, 'memories', memory.id));
+      toast({ title: "Deleted", description: "Memory removed." });
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: "Error", description: "Could not delete." });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Show if NOT patient (fallback safe)
+  const canDelete = profile?.role !== 'patient';
   return (
     <Card
       className={`flex flex-col overflow-hidden transition-shadow hover:shadow-lg ${onClick ? 'cursor-pointer' : ''}`}
       onClick={onClick}
     >
       {/* IMAGE */}
-      <CardHeader className="p-4">
+      <CardHeader className="p-4 relative group">
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md">
           <Image
             src={memory.photoUrl || '/placeholder.png'}
@@ -36,6 +73,17 @@ export function MemoryCard({ memory, onClick }: MemoryCardProps) {
             className="object-cover"
           />
         </div>
+        {canDelete && (
+          <Button
+            variant="destructive"
+            size="icon"
+            className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </Button>
+        )}
       </CardHeader>
 
       {/* CONTENT */}

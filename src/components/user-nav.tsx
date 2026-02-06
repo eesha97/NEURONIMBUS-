@@ -11,7 +11,7 @@ import {
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
-import { User, Edit, Key, LogOut } from "lucide-react";
+import { User, Edit, Key, LogOut, Settings } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { signOut } from "firebase/auth";
 
@@ -52,6 +52,11 @@ export default function UserNav() {
         <DropdownMenuItem onClick={() => router.push("/settings/profile")}>
           <User className="mr-2 h-4 w-4" />
           Profile
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={() => router.push("/settings")}>
+          <Settings className="mr-2 h-4 w-4" />
+          Settings
         </DropdownMenuItem>
 
         <DropdownMenuItem onClick={() => router.push("/settings/edit-profile")}>

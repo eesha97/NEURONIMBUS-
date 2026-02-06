@@ -1,13 +1,13 @@
 'use client';
 
-import {useEffect, useState, useRef} from 'react';
+import { useEffect, useState } from 'react';
 import type {
   FirestoreError,
   Query,
   DocumentData,
   QuerySnapshot,
 } from 'firebase/firestore';
-import {onSnapshot} from 'firebase/firestore';
+import { onSnapshot } from 'firebase/firestore';
 
 export type UseCollectionOptions = {
   listen: boolean;
@@ -24,31 +24,29 @@ export function useCollection<T = DocumentData>(
   const [data, setData] = useState<T[] | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreError | undefined>(undefined);
-  const optionsRef = useRef(options);
-  const queryRef = useRef(query);
 
   useEffect(() => {
-    if (query !== queryRef.current) {
-      queryRef.current = query;
-      setData(undefined);
-      setLoading(true);
-      setError(undefined);
-    }
-  }, [query]);
+    setData(undefined);
+    setLoading(true);
+    setError(undefined);
 
-  useEffect(() => {
-    const {listen} = options ?? DEFAULT_OPTIONS;
-    if (!queryRef.current) {
+    const { listen } = options ?? DEFAULT_OPTIONS;
+
+    if (!query) {
       setData([]);
       setLoading(false);
       return;
     }
+
     if (!listen) {
-      // Not implemented
+      // Not implemented for non-listening queries in this fix, 
+      // but keeping structure for future expansion.
+      // For now, if not listening, we just return.
       return;
     }
+
     const unsubscribe = onSnapshot(
-      queryRef.current,
+      query,
       (snapshot: QuerySnapshot<T>) => {
         const docs = snapshot.docs.map((doc) => ({
           ...doc.data(),
@@ -59,6 +57,7 @@ export function useCollection<T = DocumentData>(
         setError(undefined);
       },
       (err: FirestoreError) => {
+        console.error("Firestore Error in useCollection:", err);
         setError(err);
         setLoading(false);
       }
@@ -66,7 +65,7 @@ export function useCollection<T = DocumentData>(
     return () => {
       unsubscribe();
     };
-  }, [queryRef.current, optionsRef.current]);
+  }, [query, options?.listen]);
 
-  return {data, loading, error};
+  return { data, loading, error };
 }

@@ -1,12 +1,12 @@
 'use client';
 
-import {useEffect, useState, useRef} from 'react';
+import { useEffect, useState } from 'react';
 import type {
   DocumentReference,
   DocumentSnapshot,
   FirestoreError,
 } from 'firebase/firestore';
-import {onSnapshot} from 'firebase/firestore';
+import { onSnapshot } from 'firebase/firestore';
 
 export type UseDocOptions = {
   listen: boolean;
@@ -23,31 +23,27 @@ export function useDoc<T>(
   const [data, setData] = useState<T | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreError | undefined>(undefined);
-  const optionsRef = useRef(options);
-  const refRef = useRef(ref);
 
   useEffect(() => {
-    if (ref !== refRef.current) {
-      refRef.current = ref;
-      setData(undefined);
-      setLoading(true);
-      setError(undefined);
-    }
-  }, [ref]);
+    setData(undefined);
+    setLoading(true);
+    setError(undefined);
 
-  useEffect(() => {
-    const {listen} = options ?? DEFAULT_OPTIONS;
-    if (!refRef.current) {
+    const { listen } = options ?? DEFAULT_OPTIONS;
+
+    if (!ref) {
       setData(undefined);
       setLoading(false);
       return;
     }
+
     if (!listen) {
       // Not implemented
       return;
     }
+
     const unsubscribe = onSnapshot(
-      refRef.current,
+      ref,
       (snapshot: DocumentSnapshot<T>) => {
         if (snapshot.exists()) {
           const d = snapshot.data();
@@ -59,6 +55,7 @@ export function useDoc<T>(
         setError(undefined);
       },
       (err) => {
+        console.error("Firestore Error in useDoc:", err);
         setError(err);
         setLoading(false);
       }
@@ -66,7 +63,7 @@ export function useDoc<T>(
     return () => {
       unsubscribe();
     };
-  }, [refRef.current, optionsRef.current]);
+  }, [ref, options?.listen]);
 
-  return {data, loading, error};
+  return { data, loading, error };
 }

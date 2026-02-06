@@ -95,15 +95,7 @@ function PersonDetailContent({ person, peopleId }: { person: Person, peopleId: s
         </div>
         <div className="flex-grow">
           <h1 className="text-4xl font-bold tracking-tight font-headline">{person.displayName}</h1>
-          <div className="flex items-center gap-2 mt-2">
-            <Label htmlFor="relationship" className="text-base text-muted-foreground">
-              Relationship:
-            </Label>
-            <Input id="relationship" defaultValue={person.relationshipTag} className="w-48" />
-            <Button variant="ghost" size="icon">
-              <Edit className="h-4 w-4" />
-            </Button>
-          </div>
+
         </div>
       </header>
 
