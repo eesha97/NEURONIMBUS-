@@ -98,8 +98,9 @@ export default function UploadPage() {
       if (personLabel.trim()) {
         const normalizedLabel = personLabel.trim().toLowerCase();
         // Use normalized label as ID to ensure uniqueness for same name
-        // e.g. "John" -> "john"
-        const personId = normalizedLabel.replace(/\s+/g, '-');
+        // SCOPED by patientUid to prevent collisions between different patients' "Grandma"
+        const safeLabel = normalizedLabel.replace(/\s+/g, '-');
+        const personId = `${profile.patientUid}_${safeLabel}`;
         const personRef = doc(firestore, 'people', personId);
         const personSnap = await getDoc(personRef);
 
