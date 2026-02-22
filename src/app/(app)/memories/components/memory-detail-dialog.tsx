@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { Trash2, LoaderCircle } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
-import { deleteDoc, doc } from 'firebase/firestore';
+import { deleteDoc, doc, updateDoc, arrayRemove, deleteField } from 'firebase/firestore';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import type { Memory } from '@/lib/types';
@@ -26,7 +26,7 @@ interface MemoryDetailDialogProps {
 }
 
 export function MemoryDetailDialog({ memory, isOpen, onClose }: MemoryDetailDialogProps) {
-    const { profile } = useUser();
+    const { user, profile } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isDeleting, setIsDeleting] = useState(false);
@@ -36,25 +36,66 @@ export function MemoryDetailDialog({ memory, isOpen, onClose }: MemoryDetailDial
     const isCaregiver = profile?.role === 'caregiver';
 
     const handleDelete = async () => {
-        if (!firestore || !memory.id) return;
+        if (!firestore || !memory.id || !user) return;
 
-        if (!confirm("Are you sure you want to delete this memory? This cannot be undone.")) {
-            return;
+        const isNewFormat = Array.isArray(memory.labels);
+        const isOldFormat = !isNewFormat && !!memory.label;
+
+        let willFullDelete = false;
+        let currentLabelToRemove = null;
+        let shouldRemoveLabelFromArray = false;
+
+        if (isOldFormat) {
+            willFullDelete = true;
+        } else if (isNewFormat) {
+            const isLastCaregiver = (memory.uploadedBy?.length === 1 && memory.uploadedBy.includes(user.uid));
+
+            const currentLabel = memory.labelMap?.[user.uid];
+            const otherLabels = Object.entries(memory.labelMap || {})
+                .filter(([uid]) => uid !== user.uid)
+                .map(([, label]) => label);
+
+            shouldRemoveLabelFromArray = !!(currentLabel && !otherLabels.includes(currentLabel));
+            currentLabelToRemove = currentLabel;
+
+            willFullDelete = isLastCaregiver || (memory.labels.length === 1 && shouldRemoveLabelFromArray);
+        } else {
+            // Fallback for docs without labels array or singular label
+            willFullDelete = (memory.ownerUid === user.uid || memory.caregiverUid === user.uid);
         }
+
+        const confirmMsg = willFullDelete
+            ? "Are you sure you want to delete this memory? This will remove it for everyone and delete the image."
+            : "Are you sure you want to remove your label from this memory? Others will still see it.";
+
+        if (!confirm(confirmMsg)) return;
 
         setIsDeleting(true);
         try {
-            // Delete from Cloudinary if publicId exists
-            if (memory.publicId) {
-                await fetch('/api/delete-image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ publicId: memory.publicId }),
-                });
-            }
+            const memoryRef = doc(firestore, 'memories', memory.id);
 
-            await deleteDoc(doc(firestore, 'memories', memory.id));
-            toast({ title: 'Memory Deleted', description: 'The memory has been removed.' });
+            if (willFullDelete) {
+                // Delete from Cloudinary if publicId exists
+                if (memory.publicId) {
+                    await fetch('/api/delete-image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ publicId: memory.publicId }),
+                    });
+                }
+                await deleteDoc(memoryRef);
+                toast({ title: 'Memory Deleted', description: 'Removed successfully.' });
+            } else {
+                const updates: any = {
+                    uploadedBy: arrayRemove(user.uid),
+                    [`labelMap.${user.uid}`]: deleteField()
+                };
+                if (shouldRemoveLabelFromArray && currentLabelToRemove) {
+                    updates.labels = arrayRemove(currentLabelToRemove);
+                }
+                await updateDoc(memoryRef, updates);
+                toast({ title: 'Removed', description: 'Your association has been removed.' });
+            }
             onClose();
         } catch (e: any) {
             console.error(e);

@@ -29,25 +29,35 @@ export default function PeoplePage() {
 
   const { data: memories, loading: memoriesLoading } = useCollection<Memory>(memoriesQuery);
 
-  // Aggregate people from memories
+  // Aggregate people from memories labels
   const people = useMemo(() => {
-    if (!memories) return [];
+    if (!memories || !patientUid) return [];
 
-    const peopleMap = new Map<string, Pick<Person, 'id' | 'displayName' | 'faceThumbUrl' | 'faceThumbHint'>>();
+    const peopleMap = new Map<string, { id: string; displayName: string; faceThumbUrl: string; faceThumbHint: string }>();
 
     memories.forEach(memory => {
-      if (memory.people) {
+      // Use the new labels array for primary grouping
+      if (memory.labels && memory.labels.length > 0) {
+        memory.labels.forEach(label => {
+          const safeLabel = label.toLowerCase().replace(/\s+/g, '-');
+          const personId = `${patientUid}_${safeLabel}`;
+
+          if (!peopleMap.has(personId)) {
+            // Find display name from keywords or use capitalized label
+            const originalKeyword = memory.keywords?.find(k => k.toLowerCase() === label.toLowerCase());
+            const displayName = originalKeyword || label.charAt(0).toUpperCase() + label.slice(1);
+
+            peopleMap.set(personId, {
+              id: personId,
+              displayName: displayName,
+              faceThumbUrl: memory.photoUrl,
+              faceThumbHint: memory.photoHint
+            });
+          }
+        });
+      } else if (memory.people) {
+        // Fallback for older memories that might not have the labels array yet
         memory.people.forEach(person => {
-          // Use ID as unique key. 
-          // If we wanted to group by Label (Name) purely: peopleMap.has(person.displayName.toLowerCase())
-          // But ID is safer if available. Requirement says "Group images by label", 
-          // implying consistent labeling. 
-          // If the system generates unique IDs for the same "Grandma" across different uploads,
-          // we might have split groups. 
-          // Given "Label-based Image Clustering" requirement: "Store label... Group images by label",
-          // it implicitly suggests relying on the Label string might be desired if IDs aren't unified.
-          // HOWEVER, usually 'id' implies a unified person entity. 
-          // I will stick to 'id' for now as it's the standard unique key.
           if (!peopleMap.has(person.id)) {
             peopleMap.set(person.id, person);
           }
@@ -56,7 +66,7 @@ export default function PeoplePage() {
     });
 
     return Array.from(peopleMap.values());
-  }, [memories]);
+  }, [memories, patientUid]);
 
   const isLoading = userLoading || memoriesLoading;
 

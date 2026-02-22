@@ -78,8 +78,22 @@ function PersonDetailContent({ person, peopleId }: { person: Person, peopleId: s
 
   const personMemories = useMemo(() => {
     if (!allMemories) return [];
-    return allMemories.filter(m => m.people?.some(p => p.id === peopleId));
-  }, [allMemories, peopleId]);
+
+    // The peopleId is formatted as `${patientUid}_${safeLabel}`
+    // We can try to extract the safeLabel or just compare the generated IDs
+    return allMemories.filter(m => {
+      // Check new labels array
+      if (m.labels && m.labels.length > 0) {
+        return m.labels.some(label => {
+          const safeLabel = label.toLowerCase().replace(/\s+/g, '-');
+          const generatedId = `${person.patientUid}_${safeLabel}`;
+          return generatedId === peopleId;
+        });
+      }
+      // Fallback for older memories
+      return m.people?.some(p => p.id === peopleId);
+    });
+  }, [allMemories, peopleId, person.patientUid]);
 
   return (
     <div className="flex flex-col gap-8">

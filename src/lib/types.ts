@@ -12,7 +12,8 @@ export interface User {
 
 export interface Memory {
   id: string;
-  ownerUid: string; // caregiver UID
+  ownerUid: string; // original creator UID
+  caregiverUid?: string; // Legacy field
   patientUid: string;
   photoUrl: string;
   publicId?: string; // Cloudinary public_id for deletion
@@ -25,7 +26,11 @@ export interface Memory {
   };
   people: Pick<Person, 'id' | 'displayName' | 'faceThumbUrl' | 'faceThumbHint'>[];
   keywords: string[];
-  imageHash?: string;
+  label?: string; // Legacy singular label
+  labels: string[]; // Grouping labels (e.g. ["Amma", "Grandma"])
+  uploadedBy: string[]; // List of caregiver UIDs who shared/labeled this
+  labelMap?: Record<string, string>; // UID -> Label mapping for precise deletion
+  imageHash: string;
   duplicateStatus: 'none' | 'candidate' | 'hidden' | 'confirmed';
   processing?: {
     status: 'queued' | 'processing' | 'done' | 'error';

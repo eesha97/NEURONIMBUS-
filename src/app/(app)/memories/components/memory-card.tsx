@@ -15,7 +15,7 @@ import { ShieldAlert, Trash2, LoaderCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useUser, useFirestore } from '@/firebase';
-import { deleteDoc, doc } from 'firebase/firestore';
+import { deleteDoc, doc, updateDoc, arrayRemove, deleteField } from 'firebase/firestore';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,28 +25,78 @@ interface MemoryCardProps {
 }
 
 export function MemoryCard({ memory, onClick }: MemoryCardProps) {
-  const { profile } = useUser();
+  const { user, profile } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click (nav)
-    if (!firestore || !memory.id) return;
-    if (!confirm("Delete this memory including the image?")) return;
+    e.stopPropagation();
+    if (!firestore || !memory.id || !user) return;
+
+    const isLastCaregiver = memory.uploadedBy
+      ? (memory.uploadedBy.length === 1 && memory.uploadedBy.includes(user.uid))
+      : (memory.ownerUid === user.uid);
+
+    const confirmMsg = isLastCaregiver
+      ? "Delete this memory including the image?"
+      : "Remove your label from this shared memory?";
+
+    if (!confirm(confirmMsg)) return;
 
     setIsDeleting(true);
     try {
-      // Delete image first
-      if (memory.publicId) {
-        await fetch('/api/delete-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ publicId: memory.publicId }),
-        });
+      const memoryRef = doc(firestore, 'memories', memory.id);
+
+      const isNewFormat = Array.isArray(memory.labels);
+      const isOldFormat = !isNewFormat && !!memory.label;
+
+      let willBeEmpty = false;
+      let currentLabelToRemove = null;
+      let shouldRemoveLabelFromArray = false;
+
+      if (isOldFormat) {
+        willBeEmpty = true;
+      } else if (isNewFormat) {
+        const isLastCaregiver = (memory.uploadedBy?.length === 1 && memory.uploadedBy.includes(user.uid));
+
+        const currentLabel = memory.labelMap?.[user.uid];
+        const otherLabels = Object.entries(memory.labelMap || {})
+          .filter(([uid]) => uid !== user.uid)
+          .map(([, label]) => label);
+
+        shouldRemoveLabelFromArray = !!(currentLabel && !otherLabels.includes(currentLabel));
+        currentLabelToRemove = currentLabel;
+
+        willBeEmpty = isLastCaregiver || (memory.labels.length === 1 && shouldRemoveLabelFromArray);
+      } else {
+        // Fallback for docs without labels array or singular label
+        willBeEmpty = (memory.ownerUid === user.uid || memory.caregiverUid === user.uid);
       }
-      await deleteDoc(doc(firestore, 'memories', memory.id));
-      toast({ title: "Deleted", description: "Memory removed." });
+
+      if (willBeEmpty) {
+        // Delete image first
+        if (memory.publicId) {
+          await fetch('/api/delete-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publicId: memory.publicId }),
+          });
+        }
+        await deleteDoc(memoryRef);
+        toast({ title: "Deleted", description: "Memory removed successfully." });
+      } else {
+        // Just remove this caregiver's association
+        const updates: any = {
+          uploadedBy: arrayRemove(user.uid),
+          [`labelMap.${user.uid}`]: deleteField()
+        };
+        if (shouldRemoveLabelFromArray && currentLabelToRemove) {
+          updates.labels = arrayRemove(currentLabelToRemove);
+        }
+        await updateDoc(memoryRef, updates);
+        toast({ title: "Removed", description: "Your association has been removed." });
+      }
     } catch (err) {
       console.error(err);
       toast({ variant: 'destructive', title: "Error", description: "Could not delete." });

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useFirestore, useUser } from '@/firebase';
 
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, query, where, getDocs, updateDoc, arrayUnion } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, UploadCloud, AlertCircle } from 'lucide-react';
@@ -69,11 +69,50 @@ export default function UploadPage() {
     setUploading(true);
 
     try {
+      const file = selectedImage.file;
       let photoUrl = '';
       let photoHint = '';
       let publicId = '';
 
-      const file = selectedImage.file;
+      // 1. Generate SHA-256 hash
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const imageHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+
+      // 2. Check for duplicate in Firestore
+      const memoriesCol = collection(firestore, 'memories');
+      const q = query(
+        memoriesCol,
+        where("imageHash", "==", imageHash),
+        where("patientUid", "==", profile.patientUid)
+      );
+      const querySnapshot = await getDocs(q);
+
+      const normalizedLabel = personLabel.trim().toLowerCase();
+
+      if (!querySnapshot.empty) {
+        // DUPLICATE EXISTS
+        const existingDoc = querySnapshot.docs[0];
+        const existingRef = doc(firestore, 'memories', existingDoc.id);
+
+        await updateDoc(existingRef, {
+          labels: arrayUnion(normalizedLabel),
+          uploadedBy: arrayUnion(user.uid),
+          keywords: arrayUnion(personLabel.trim()),
+          [`labelMap.${user.uid}`]: normalizedLabel
+        });
+
+        toast({
+          title: 'Memory Updated!',
+          description: `Image already exists. Added label "${personLabel}" to it.`,
+        });
+
+        router.push('/memories');
+        return;
+      }
+
+      // 3. NO DUPLICATE - Proceed with Upload
       const formData = new FormData();
       formData.append("file", file);
 
@@ -94,11 +133,8 @@ export default function UploadPage() {
 
       let peopleArray: any[] = [];
 
-      // Handle Person Labeling
+      // Handle Person Labeling (Keeping existing logic for backward compatibility/People section)
       if (personLabel.trim()) {
-        const normalizedLabel = personLabel.trim().toLowerCase();
-        // Use normalized label as ID to ensure uniqueness for same name
-        // SCOPED by patientUid to prevent collisions between different patients' "Grandma"
         const safeLabel = normalizedLabel.replace(/\s+/g, '-');
         const personId = `${profile.patientUid}_${safeLabel}`;
         const personRef = doc(firestore, 'people', personId);
@@ -109,16 +145,15 @@ export default function UploadPage() {
           await setDoc(personRef, {
             id: personId,
             patientUid: profile.patientUid,
-            displayName: personLabel.trim(), // Keep original casing for display
-            faceThumbUrl: photoUrl, // Use this first image as thumbnail
+            displayName: personLabel.trim(),
+            faceThumbUrl: photoUrl,
             faceThumbHint: photoHint,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
-            relationshipTag: 'Friend/Family' // Default
+            relationshipTag: 'Friend/Family'
           });
         }
 
-        // Add to people array for the memory
         peopleArray.push({
           id: personId,
           displayName: personLabel.trim(),
@@ -134,14 +169,17 @@ export default function UploadPage() {
         publicId,
         photoHint,
         caption,
+        imageHash,
+        labels: [normalizedLabel].filter(Boolean),
+        uploadedBy: [user.uid],
+        labelMap: normalizedLabel ? { [user.uid]: normalizedLabel } : {},
         createdAt: serverTimestamp(),
-        people: peopleArray, // Store the linked person
-        keywords: [personLabel.trim()].filter(Boolean), // Add name as keyword too
+        people: peopleArray,
+        keywords: [personLabel.trim()].filter(Boolean),
         duplicateStatus: 'none',
         processing: { status: 'done' }
       };
 
-      const memoriesCol = collection(firestore, 'memories');
       await addDoc(memoriesCol, memoryData);
 
       toast({
