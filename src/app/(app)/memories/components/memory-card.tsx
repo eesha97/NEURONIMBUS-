@@ -151,11 +151,43 @@ export function MemoryCard({ memory, onClick }: MemoryCardProps) {
           </p>
         )}
 
-        {memory.caption && (
-          <p className="mt-2 text-base leading-relaxed">
-            {memory.caption}
-          </p>
-        )}
+        {/* KEYWORDS & LABELS (Vertical Separation) */}
+        <div className="mt-2 flex flex-col gap-1.5">
+          {(() => {
+            const labels = (memory.labels || []).filter(Boolean);
+            const keywords = (memory.keywords || []).filter(k => !labels.includes(k.toLowerCase())).filter(Boolean);
+
+            if (labels.length === 0 && keywords.length === 0) {
+              return <p className="text-sm font-bold text-muted-foreground lowercase leading-relaxed">{memory.caption}</p>;
+            }
+
+            return (
+              <>
+                {/* Line 1: Keywords (GRAY, LOWERCASE) */}
+                {keywords.length > 0 && (
+                  <p className="text-sm font-bold text-muted-foreground lowercase leading-tight">
+                    {keywords.join(" • ")}
+                  </p>
+                )}
+
+                {/* Line 2: Labels (BLACK OVAL BADGES, UPPERCASE) */}
+                {labels.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {labels.map((label, idx) => (
+                      <Badge
+                        key={idx}
+                        variant="outline"
+                        className="rounded-full border-black text-black font-bold uppercase text-[10px] py-0 px-2 h-5"
+                      >
+                        {label}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
 
         {memory.duplicateStatus === 'candidate' && (
           <Alert variant="destructive" className="mt-4">
@@ -170,39 +202,8 @@ export function MemoryCard({ memory, onClick }: MemoryCardProps) {
 
       {/* FOOTER */}
       <CardFooter className="flex-col items-start gap-4 p-4 pt-0">
-        {/* PEOPLE */}
-        {/* PEOPLE - HIDDEN AS REQUESTED */}
-        {/* {memory.people?.length > 0 && (
-          <div className="flex -space-x-2 overflow-hidden">
-            {memory.people.map((person) => (
-              <Avatar
-                key={person.id}
-                className="h-8 w-8 border-2 border-card"
-              >
-                <AvatarImage
-                  src={person.faceThumbUrl}
-                  alt={person.displayName}
-                />
-                <AvatarFallback>
-                  {person.displayName?.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-            ))}
-          </div>
-        )} */}
-
         {/* TAGS */}
         <div className="flex flex-wrap gap-2">
-          {memory.keywords?.map((keyword) => (
-            <Badge
-              key={keyword}
-              variant="secondary"
-              className="font-normal"
-            >
-              {keyword}
-            </Badge>
-          ))}
-
           {memory.event && (
             <Badge
               variant="outline"

@@ -16,6 +16,7 @@ import Image from 'next/image';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { extractKeywords } from '@/ai/flows/extract-keywords';
 
 type SelectedImage = {
   file: File;
@@ -112,7 +113,18 @@ export default function UploadPage() {
         return;
       }
 
-      // 3. NO DUPLICATE - Proceed with Upload
+      // 3. Extract Keywords from Caption
+      let extractedKeywords: string[] = [];
+      if (caption.trim()) {
+        try {
+          const result = await extractKeywords({ caption });
+          extractedKeywords = result.keywords;
+        } catch (e) {
+          console.error("Keyword extraction failed:", e);
+        }
+      }
+
+      // 4. NO DUPLICATE - Proceed with Upload
       const formData = new FormData();
       formData.append("file", file);
 
@@ -162,6 +174,12 @@ export default function UploadPage() {
         });
       }
 
+      // Merge personLabel with extracted keywords for storage
+      const finalKeywords = [...new Set([
+        personLabel.trim(),
+        ...extractedKeywords
+      ])].filter(Boolean).map(k => k.toLowerCase());
+
       const memoryData = {
         ownerUid: user.uid,
         patientUid: profile.patientUid,
@@ -175,7 +193,7 @@ export default function UploadPage() {
         labelMap: normalizedLabel ? { [user.uid]: normalizedLabel } : {},
         createdAt: serverTimestamp(),
         people: peopleArray,
-        keywords: [personLabel.trim()].filter(Boolean),
+        keywords: finalKeywords,
         duplicateStatus: 'none',
         processing: { status: 'done' }
       };

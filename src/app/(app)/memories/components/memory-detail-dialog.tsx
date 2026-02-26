@@ -121,8 +121,41 @@ export function MemoryDetailDialog({ memory, isOpen, onClose }: MemoryDetailDial
 
                 <div className="p-6 space-y-6">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-headline leading-tight">
-                            {memory.caption || 'Untitled Memory'}
+                        <DialogTitle className="text-2xl font-headline leading-tight flex flex-col gap-2">
+                            {(() => {
+                                const labels = (memory.labels || []).filter(Boolean);
+                                const keywords = (memory.keywords || []).filter(k => !labels.includes(k.toLowerCase())).filter(Boolean);
+
+                                if (labels.length === 0 && keywords.length === 0) {
+                                    return <span className="lowercase font-bold text-muted-foreground text-lg">{memory.caption || 'Untitled Memory'}</span>;
+                                }
+
+                                return (
+                                    <>
+                                        {/* Line 1: Keywords (GRAY, LOWERCASE) */}
+                                        {keywords.length > 0 && (
+                                            <span className="text-muted-foreground lowercase font-bold text-sm">
+                                                {keywords.join(" • ")}
+                                            </span>
+                                        )}
+
+                                        {/* Line 2: Labels (BLACK OVAL BADGES, UPPERCASE) */}
+                                        {labels.length > 0 && (
+                                            <div className="flex flex-wrap gap-2">
+                                                {labels.map((label, idx) => (
+                                                    <Badge
+                                                        key={idx}
+                                                        variant="outline"
+                                                        className="rounded-full border-black text-black font-bold uppercase text-base px-3 py-0.5 h-auto"
+                                                    >
+                                                        {label}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </DialogTitle>
                         {memory.createdAt && (
                             <p className="text-muted-foreground">
@@ -153,18 +186,13 @@ export function MemoryDetailDialog({ memory, isOpen, onClose }: MemoryDetailDial
                         </div>
                     )}
 
-                    {/* EVENT & KEYWORDS */}
+                    {/* EVENT */}
                     <div className="flex flex-wrap gap-2">
                         {memory.event && (
                             <Badge variant="outline" className="text-sm py-1 px-3 border-accent text-accent-foreground">
                                 Event: {memory.event.title}
                             </Badge>
                         )}
-                        {memory.keywords?.map(k => (
-                            <Badge key={k} variant="secondary" className="text-sm py-1 px-3">
-                                {k}
-                            </Badge>
-                        ))}
                     </div>
 
                     <DialogFooter className="mt-8 pt-4 border-t">
