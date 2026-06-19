@@ -148,6 +148,9 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({
+        prompt: 'select_account',
+      });
       const result = await signInWithPopup(auth, provider);
 
       const ref = doc(firestore, 'users', result.user.uid);
